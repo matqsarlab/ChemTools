@@ -1,5 +1,5 @@
 [project]
-name = "tryton-tools"
+name = "ChemTools"
 version = "0.1.0"
 description = "Gibbs, Rotacje"
 readme = "README.md"
