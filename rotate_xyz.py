@@ -84,7 +84,7 @@ class MoleculeRotator:
     def parse_axis(self, axis_str: str) -> Tuple[np.ndarray, np.ndarray]:
         """
         Parsuje string wejściowy do postaci (origin, axis_vector).
-        Jest teraz bardziej odporny na formatowanie.
+        Jest teraz bardziej odporny na formatowanie i obsługuje indeksy atomów.
         """
         # Zamieniamy wszystko co nie jest liczbą lub minusem/kropką na przecinek
         clean_str = (
@@ -100,11 +100,27 @@ class MoleculeRotator:
             # Rozbijamy po przecinkach i filtrujemy puste stringi
             values = [float(x) for x in clean_str.split(",") if x]
 
-            if len(values) == 6:
+            if len(values) == 2:
+                # Mamy 2 liczby -> indeksy atomów (numeracja od 0)
+                idx1, idx2 = int(values[0]), int(values[1])
+
+                # Sprawdzenie, czy indeksy nie wychodzą poza zakres
+                if not (0 <= idx1 < len(self.coords)) or not (
+                    0 <= idx2 < len(self.coords)
+                ):
+                    raise ValueError(
+                        f"Indeksy atomów poza zakresem (0 do {len(self.coords)-1})"
+                    )
+
+                p1 = self.coords[idx1]
+                p2 = self.coords[idx2]
+                return p1, p2 - p1  # p1 to origin, (p2 - p1) to wektor kierunkowy
+
+            elif len(values) == 6:
                 # Mamy 6 liczb -> dwa punkty (x2,y2,z2) i (x1,y1,z1)
                 p2 = np.array(values[0:3])
                 p1 = np.array(values[3:6])
-                return p1, p2 - p1  # Zwracamy Origin i Wektor Kierunkowy
+                return p1, p2 - p1
 
             elif len(values) == 3:
                 # Mamy 3 liczby -> wektor kierunkowy, origin to 0,0,0
@@ -112,11 +128,13 @@ class MoleculeRotator:
                 return np.zeros(3), vec
 
             else:
-                raise ValueError(f"Oczekiwano 3 lub 6 liczb, otrzymano {len(values)}")
+                raise ValueError(
+                    f"Oczekiwano 2, 3 lub 6 liczb, otrzymano {len(values)}"
+                )
 
         except ValueError as e:
             print(
-                f"Błąd formatu osi: {e}.\nUżyj np: '1.0,0,0' (kierunek) lub '1,0,0;0,0,0' (dwa punkty)",
+                f"Błąd formatu osi: {e}.\nUżyj np: '1.0,0,0' (kierunek), '1,0,0;0,0,0' (2 punkty 3D) lub '0,5' (2 atomy)",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -175,10 +193,10 @@ def main():
         "-a",
         "--axis",
         required=True,
-        help="Oś: 'x,y,z' lub 'x2,y2,z2;x1,y1,z1' (np. '1,0,0;0,0,0')",
+        help="Oś: 2 indeksy atomów (np. '0,5'), wektor 'x,y,z' lub dwa punkty 'x2,y2,z2;x1,y1,z1'",
     )
     parser.add_argument(
-        "-s", "--select", required=True, help="Indeksy atomów (np. '1,2,3' lub 'all')"
+        "-s", "--select", required=True, help="Indeksy atomów (np. '0,1,2' lub 'all')"
     )
     parser.add_argument(
         "-d", "--deg", type=float, default=180.0, help="Kąt w stopniach"
@@ -193,7 +211,7 @@ def main():
     else:
         # Zamiana przecinków na spacje, aby obsłużyć "1,2,3" i "1 2 3"
         s = args.select.replace(",", " ")
-        indices = [int(x) - 1 for x in s.split()]
+        indices = [int(x) for x in s.split()]
 
     rotator.rotate(args.axis, indices, args.deg)
     rotator.output(args.output)
